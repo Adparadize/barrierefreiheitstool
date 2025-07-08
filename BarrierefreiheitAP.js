@@ -170,3 +170,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
   loadSettings();
 });
+function changeTextSize(direction) {
+  textScale = Math.max(0, Math.min(20, textScale + direction));
+  const newSize = 80 + (textScale * 6);
+  
+  // Passe direkt alle Textelemente an
+  const elements = document.querySelectorAll('p, span, a, li, td, th, div, h1, h2, h3, h4, h5, h6');
+
+  elements.forEach(el => {
+    el.style.fontSize = newSize + '%';
+  });
+
+  saveState('textSizeStep', textScale);
+}
