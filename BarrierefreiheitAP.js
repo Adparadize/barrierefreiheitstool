@@ -1,104 +1,166 @@
-<!-- 🦽 Barrierefreiheits-Widget Adparadize -->
-<div id="accessibility-toggle" onclick="toggleToolbar()" title="Barrierefreiheit öffnen">
-  <img src="https://adparadize.github.io/barrierefreiheitstool/icons/Barrierefrei.png" alt="Barrierefreiheit" />
-</div>
+(function () {
+  if (window.AdparadizeAccessibility) return;
+  window.AdparadizeAccessibility = true;
 
-<div id="accessibility-toolbar" style="display: none;">
-  <div id="accessibility-header"><strong>Adparadize</strong></div>
-  <button onclick="applyInstantView()">
-    <img src="https://adparadize.github.io/barrierefreiheitstool/icons/Sofortansicht.png" alt="Sofortansicht" /> Sofortansicht
-  </button>
-  <button onclick="toggleContrast()">
-    <img src="https://adparadize.github.io/barrierefreiheitstool/icons/Contrast.png" alt="Kontrast" /> Kontrast
-  </button>
-  <button onclick="changeTextSize(1)">
-    <img src="https://adparadize.github.io/barrierefreiheitstool/icons/Groesser.png" alt="Textgröße erhöhen" /> Text +
-  </button>
-  <button onclick="changeTextSize(-1)">
-    <img src="https://adparadize.github.io/barrierefreiheitstool/icons/Kleiner.png" alt="Textgröße verringern" /> Text −
-  </button>
-  <button onclick="toggleColorBlindMode()">
-    <img src="https://adparadize.github.io/barrierefreiheitstool/icons/Farbschwache.png" alt="Farbschwächemodus" /> Farbschwäche
-  </button>
-  <button onclick="startReading()">
-    <img src="https://adparadize.github.io/barrierefreiheitstool/icons/Vorlesen.png" alt="Vorlesen" /> Vorlesen
-  </button>
-  <button onclick="resetAccessibility()">
-    <img src="https://adparadize.github.io/barrierefreiheitstool/icons/Reset.png" alt="Zurücksetzen" /> Zurücksetzen
-  </button>
-</div>
+  const state = {
+    fontScale: 1,
+    contrast: false,
+    dyslexiaFont: false,
+    highlightLinks: false,
+    stopAnimations: false,
+    bigCursor: false
+  };
 
-<style>
-  #accessibility-toggle {
-    position: fixed;
-    top: 40%;
-    left: 10px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    z-index: 10000;
-  }
+  const save = () => localStorage.setItem('adp-accessibility', JSON.stringify(state));
+  const load = () => Object.assign(state, JSON.parse(localStorage.getItem('adp-accessibility') || '{}'));
 
-  #accessibility-toggle img {
-    width: 48px;
-    height: 48px;
-  }
+  load();
 
-  #accessibility-toolbar {
-    position: fixed;
-    top: 40%;
-    left: 70px;
-    background: #ffffff;
-    padding: 10px;
-    border-radius: 10px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-family: sans-serif;
-  }
+  const root = document.createElement('div');
+  root.id = 'adp-accessibility-root';
+  document.body.appendChild(root);
 
-  #accessibility-toolbar button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: #f0f0f0;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-  }
+  root.innerHTML = `
+    <button id="adp-toggle" aria-label="Barrierefreiheit öffnen">🦽</button>
+    <div id="adp-panel" hidden>
+      <h3>Barrierefreiheit</h3>
 
-  #accessibility-toolbar button img {
-    width: 20px;
-    height: 20px;
-  }
+      <div class="adp-group">
+        <button data-action="fontPlus">Text +</button>
+        <button data-action="fontMinus">Text −</button>
+      </div>
 
-  #accessibility-header {
-    font-size: 16px;
-    margin-bottom: 6px;
-    text-align: center;
-    color: #333;
-    font-weight: bold;
-  }
+      <button data-action="contrast">Hoher Kontrast</button>
+      <button data-action="dyslexia">Dyslexie-Schrift</button>
+      <button data-action="links">Links hervorheben</button>
+      <button data-action="animations">Animationen stoppen</button>
+      <button data-action="cursor">Großer Cursor</button>
 
-  body.high-contrast {
-    background-color: #000 !important;
-    color: #fff !important;
-    filter: contrast(180%) grayscale(100%);
-  }
+      <button data-action="reset" class="adp-reset">Zurücksetzen</button>
+    </div>
+  `;
 
-  body.colorblind-mode, body.colorblind-mode * {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    border-color: #000000 !important;
-  }
+  const style = document.createElement('style');
+  style.innerHTML = `
+    #adp-toggle {
+      position: fixed;
+      left: 12px;
+      top: 40%;
+      z-index: 100000;
+      font-size: 24px;
+      border-radius: 50%;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+    }
 
-  *:focus {
-    outline: 3px solid #ffcc00;
-    outline-offset: 2px;
-  }
-</style>
+    #adp-panel {
+      position: fixed;
+      left: 70px;
+      top: 30%;
+      background: #fff;
+      padding: 14px;
+      width: 240px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.2);
+      z-index: 100000;
+      font-family: system-ui, sans-serif;
+    }
 
+    .adp-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .adp-reset {
+      margin-top: 10px;
+      background: #000;
+      color: #fff;
+    }
+
+    .adp-contrast {
+      background: #000 !important;
+      color: #fff !important;
+    }
+
+    .adp-dyslexia {
+      font-family: "OpenDyslexic", Arial, sans-serif !important;
+    }
+
+    .adp-links a {
+      outline: 3px solid #ffcc00;
+      background: #000;
+      color: #fff !important;
+    }
+
+    .adp-no-anim * {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    .adp-big-cursor,
+    .adp-big-cursor * {
+      cursor: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'>\
+<polygon points='0,0 0,40 12,30 22,50 28,46 18,26 38,26' fill='black' stroke='white' stroke-width='2'/>\
+</svg>") 0 0, auto !important;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const panel = root.querySelector('#adp-panel');
+
+  root.querySelector('#adp-toggle').addEventListener('click', () => {
+    panel.hidden = !panel.hidden;
+  });
+
+  root.addEventListener('click', (e) => {
+    const action = e.target.dataset.action;
+    if (!action) return;
+
+    switch (action) {
+      case 'fontPlus':
+        state.fontScale = Math.min(state.fontScale + 0.1, 1.6);
+        document.documentElement.style.fontSize = state.fontScale + 'em';
+        break;
+
+      case 'fontMinus':
+        state.fontScale = Math.max(state.fontScale - 0.1, 0.8);
+        document.documentElement.style.fontSize = state.fontScale + 'em';
+        break;
+
+      case 'contrast':
+        document.documentElement.classList.toggle('adp-contrast');
+        state.contrast = !state.contrast;
+        break;
+
+      case 'dyslexia':
+        document.documentElement.classList.toggle('adp-dyslexia');
+        state.dyslexiaFont = !state.dyslexiaFont;
+        break;
+
+      case 'links':
+        document.documentElement.classList.toggle('adp-links');
+        state.highlightLinks = !state.highlightLinks;
+        break;
+
+      case 'animations':
+        document.documentElement.classList.toggle('adp-no-anim');
+        state.stopAnimations = !state.stopAnimations;
+        break;
+
+      case 'cursor':
+        document.documentElement.classList.toggle('adp-big-cursor');
+        state.bigCursor = !state.bigCursor;
+        break;
+
+      case 'reset':
+        localStorage.removeItem('adp-accessibility');
+        location.reload();
+    }
+
+    save();
+  });
+
+  if (state.bigCursor) document.documentElement.classList.add('adp-big-cursor');
+})();
