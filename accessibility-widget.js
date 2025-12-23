@@ -1,11 +1,15 @@
-/*! 
-    Visuell verbessertes Barrierefreiheits-Widget
-    - Grid-Layout mit Karten, Icons, Fokus/Hover-Styles
-    - Beibehaltung vorhandener Funktionalität (Toggles, TTS, Persistenz)
+   Accessibility widget ready for GitHub/jsDelivr
+    - Based on user's `barrierefreiheit-enhanced.js` implementation
+    - Adds init guard and a minimal `window.adpAccessibility` API
+    - Designed to be copied to `accessibility-widget.js` in your repo root
 */
 
 (function () {
-    const STORAGE_KEY = 'adparadizeAccessibility_v1';
+    // avoid double-init when script is loaded multiple times
+    if (window.adpAccessibilityInitialized) return;
+    window.adpAccessibilityInitialized = true;
+
+    const STORAGE_KEY = 'accessibility-widget_v1';
     const defaults = {
         toolbarOpen: false,
         textScaleStep: 2,
@@ -357,7 +361,19 @@ body.adp-strongfont * { font-weight: 600 !important; }
     function makeFocusable(root) { root.querySelectorAll('button, [href], input, select, textarea, [role="button"], [tabindex]').forEach((el) => { if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0'); }); }
     makeFocusable(toolbar);
 
+    // expose a minimal API to control the widget from host pages (optional)
+    window.adpAccessibility = {
+        open: () => { settings.toolbarOpen = true; toolbar.style.display = 'flex'; saveSettings(); },
+        close: () => { settings.toolbarOpen = false; toolbar.style.display = 'none'; saveSettings(); },
+        toggle: () => { settings.toolbarOpen = !settings.toolbarOpen; toolbar.style.display = settings.toolbarOpen ? 'flex' : 'none'; saveSettings(); },
+        getSettings: () => JSON.parse(JSON.stringify(settings)),
+        reset: resetAllSettings,
+        startTTS: startTTS,
+        stopTTS: stopTTS
+    };
+
 })();
+
 
 
 
