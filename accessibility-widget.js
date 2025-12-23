@@ -38,16 +38,20 @@
 #adp-accessibility-toggle { position: fixed; top: 44%; left: 12px; z-index: 2147483000; width:48px; height:48px; border-radius:12px; background: var(--adp-primary); display:flex;align-items:center;justify-content:center;box-shadow:0 12px 30px rgba(2,6,23,0.35); cursor:pointer; border: 2px solid rgba(255,255,255,0.06); }
 #adp-accessibility-toggle img { width:22px;height:22px; filter: drop-shadow(0 2px 1px rgba(0,0,0,.25)); }
 
-/* Toolbar */
-#adp-accessibility-toolbar { position: fixed; top: 14%; left: 88px; z-index: 2147483000; width: 420px; max-height: 78vh; overflow:auto; background: rgba(255,255,255,0.98); border-radius: 16px; padding: 14px; box-shadow: 0 18px 40px rgba(2,6,23,0.28); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; color:#0f172a; font-size:14px; display:flex;flex-direction:column; gap:14px; backdrop-filter: blur(6px); border: 1px solid rgba(15,23,42,0.05); }
+/* Toolbar container */
+#adp-accessibility-toolbar { position: fixed; top: 12%; left: 88px; z-index: 2147483000; width: 420px; max-height: 80vh; overflow:visible; background: transparent; border-radius: 16px; padding: 0; box-shadow: 0 18px 40px rgba(2,6,23,0.28); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; color:#0f172a; font-size:14px; display:flex;flex-direction:column; gap:0; backdrop-filter: blur(6px); }
 
-/* Header */
-#adp-accessibility-toolbar .header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-#adp-accessibility-toolbar .title { font-weight:700; font-size:16px; color:#0b1220; }
-#adp-accessibility-toolbar .controls { display:flex; gap:6px; align-items:center; }
+/* Header bar (black) */
+#adp-accessibility-toolbar .header-bar { background:#0b0b0b; color:#fff; padding:10px 12px; border-radius: 12px 12px 0 0; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#adp-accessibility-toolbar .header-bar .title { font-weight:700; font-size:15px; color:#fff; }
+#adp-accessibility-toolbar .header-bar .actions { display:flex; gap:8px; align-items:center; }
+#adp-accessibility-toolbar .header-bar .circle-btn { width:36px; height:36px; border-radius:999px; background:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; border: none; }
+#adp-accessibility-toolbar .header-bar .circle-btn svg { width:16px; height:16px; color:#0b0b0b; }
 #adp-accessibility-toolbar .small { color:var(--adp-muted); font-size:12px; }
 
 /* Sections */
+/* Panel body (light) */
+.adp-panel { background:#f3f4f6; border-radius: 0 0 12px 12px; padding:14px; display:flex; flex-direction:column; gap:12px; border: 1px solid rgba(15,23,42,0.04); }
 .adp-section { display:flex; flex-direction:column; gap:10px; }
 .adp-section .section-title { font-weight:700; color:#0b1220; font-size:13px; }
 
@@ -62,7 +66,7 @@
 /* Use subtle muted pill style for small controls */
 .adp-controls { display:flex; gap:8px; align-items:center; }
 .adp-controls button { padding:8px 12px; border-radius:10px; background:#f1f5f9; border:none; cursor:pointer; color: #0f172a; }
-.adp-reset { background: rgba(249, 245, 242, 0.98); color:#990000; padding:10px;border-radius:10px;width:100%; border:1px solid rgba(0,0,0,0.04); }
+.adp-reset { background: #0b0b0b; color: #fff; padding:12px;border-radius:10px;width:100%; border:none; font-weight:600; }
 
 /* Reading bar & large cursor */
 #adp-reading-bar { position: fixed; left: 0; right: 0; height: 48px; pointer-events:none; background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04)); mix-blend-mode:multiply; z-index:2147483000; display:none; }
@@ -108,67 +112,75 @@ body.adp-strongfont * { font-weight: 600 !important; }
     toolbar.setAttribute('aria-label', 'Barrierefreiheitswerkzeug');
 
     toolbar.innerHTML = `
-        <div class="header">
-            <div>
-                <div class="title">Barrierefreiheit</div>
+        <div class="header-bar">
+            <div class="title">Barrierefreiheit</div>
+            <div class="actions">
+                <button id="adp-power" class="circle-btn" aria-label="Aktivieren/Deaktivieren" title="Aktivieren/Deaktivieren"> 
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M5.05 6.05a8 8 0 1013.9 0"/></svg>
+                </button>
+                <button id="adp-close" class="circle-btn" aria-label="Schließen" title="Schließen"> 
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="adp-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div class="small">Inhaltsanpassungen und Kontrast</div>
-            </div>
-            <div class="controls">
                 <select id="adp-lang" aria-label="Sprache"><option value="de">Deutsch (German)</option></select>
-                <button id="adp-close" aria-label="Schließen" title="Schließen" style="background:transparent;padding:6px;border-radius:8px;">✕</button>
             </div>
-        </div>
 
-        <div class="adp-section">
-            <div class="section-title">Inhaltsanpassungen</div>
-            <div class="adp-grid" role="toolbar" aria-label="Funktionen">
-                <div tabindex="0" class="adp-card" id="adp-card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18M5 20h14M7 8h10"/></svg><div class="label">Titel hervorheben</div></div>
-                <div tabindex="0" class="adp-card" id="adp-card-links"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 14a5 5 0 007.07 0l1.41-1.41a5 5 0 00-7.07-7.07L10 6.93"/><path d="M14 10a5 5 0 00-7.07 0L5.52 11.41a5 5 0 007.07 7.07L14 17.07"/></svg><div class="label">Links hervorh.</div></div>
-                <div tabindex="0" class="adp-card" id="adp-card-dyslexic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg><div class="label">Dyslexie-Schrift</div></div>
+            <div class="adp-section">
+                <div class="section-title">Inhaltsanpassungen</div>
+                <div class="adp-grid" role="toolbar" aria-label="Funktionen">
+                    <div tabindex="0" class="adp-card" id="adp-card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18M5 20h14M7 8h10"/></svg><div class="label">Titel hervorheben</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-card-links"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 14a5 5 0 007.07 0l1.41-1.41a5 5 0 00-7.07-7.07L10 6.93"/><path d="M14 10a5 5 0 00-7.07 0L5.52 11.41a5 5 0 007.07 7.07L14 17.07"/></svg><div class="label">Links hervorh.</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-card-dyslexic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg><div class="label">Dyslexie-Schrift</div></div>
 
-                <div tabindex="0" class="adp-card" id="adp-card-letterspacing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 18h18"/></svg><div class="label">Zeichenabstand</div></div>
-                <div tabindex="0" class="adp-card" id="adp-card-lineheight"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M10 12h4M4 18h16"/></svg><div class="label">Zeilenhöhe</div></div>
-                <div tabindex="0" class="adp-card" id="adp-card-fontweight"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h6a2 2 0 012 2v12a2 2 0 01-2 2H6z"/><path d="M14 8h2a2 2 0 012 2v4a2 2 0 01-2 2h-2"/></svg><div class="label">Schriftstärke</div></div>
-            </div>
-        </div>
-
-        <div class="adp-section">
-            <div class="section-title">Farbanpassungen</div>
-            <div class="adp-grid">
-                <div tabindex="0" class="adp-card" id="adp-contrast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v18"/></svg><div class="label">Dunkler Kontrast</div></div>
-                <div tabindex="0" class="adp-card" id="adp-night"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><div class="label">Nacht</div></div>
-                <div tabindex="0" class="adp-card" id="adp-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/></svg><div class="label">Blaufilter</div></div>
-
-                <div tabindex="0" class="adp-card" id="adp-colorblind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg><div class="label">Farbschwäche</div></div>
-                <div tabindex="0" class="adp-card" id="adp-sans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h16"/><path d="M8 4l4 16 4-16"/></svg><div class="label">Serifenlos</div></div>
-                <div tabindex="0" class="adp-card" id="adp-hide-images"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M3 9l9 6 9-6"/></svg><div class="label">Bilder ausblenden</div></div>
-            </div>
-        </div>
-
-        <div class="adp-section">
-            <div class="section-title">Werkzeuge</div>
-            <div class="adp-grid">
-                <div tabindex="0" class="adp-card" id="adp-large-cursor-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/></svg><div class="label">Großer Cursor</div></div>
-                <div tabindex="0" class="adp-card" id="adp-readingbar-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="18" height="4" rx="1"/></svg><div class="label">Leseleiste</div></div>
-                <div tabindex="0" class="adp-card" id="adp-pause-anim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg><div class="label">Animationen</div></div>
-            </div>
-        </div>
-
-        <div class="adp-section">
-            <div class="adp-controls">
-                <button id="adp-text-decrease" title="Text verkleinern">−</button>
-                <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;">
-                    <button id="adp-text-reset" title="Text zurücksetzen">100%</button>
+                    <div tabindex="0" class="adp-card" id="adp-card-letterspacing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 18h18"/></svg><div class="label">Zeichenabstand</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-card-lineheight"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M10 12h4M4 18h16"/></svg><div class="label">Zeilenhöhe</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-card-fontweight"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h6a2 2 0 012 2v12a2 2 0 01-2 2H6z"/><path d="M14 8h2a2 2 0 012 2v4a2 2 0 01-2 2h-2"/></svg><div class="label">Schriftstärke</div></div>
                 </div>
-                <button id="adp-text-increase" title="Text vergrößern">+</button>
             </div>
-        </div>
 
-        <div style="display:flex;gap:8px;margin-top:6px;">
-            <button id="adp-reset" class="adp-reset" title="Einstellungen zurücksetzen">Einstellungen zurücksetzen</button>
-        </div>
+            <div class="adp-section">
+                <div class="section-title">Farbanpassungen</div>
+                <div class="adp-grid">
+                    <div tabindex="0" class="adp-card" id="adp-contrast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v18"/></svg><div class="label">Dunkler Kontrast</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-night"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><div class="label">Nacht</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/></svg><div class="label">Blaufilter</div></div>
 
-        <div style="text-align:center;margin-top:6px;color:#64748b;font-size:12px;">Shortcut: Alt+Shift+A öffnen/schließen</div>
+                    <div tabindex="0" class="adp-card" id="adp-colorblind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg><div class="label">Farbschwäche</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-sans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h16"/><path d="M8 4l4 16 4-16"/></svg><div class="label">Serifenlos</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-hide-images"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M3 9l9 6 9-6"/></svg><div class="label">Bilder ausblenden</div></div>
+                </div>
+            </div>
+
+            <div class="adp-section">
+                <div class="section-title">Werkzeuge</div>
+                <div class="adp-grid">
+                    <div tabindex="0" class="adp-card" id="adp-large-cursor-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/></svg><div class="label">Großer Cursor</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-readingbar-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="18" height="4" rx="1"/></svg><div class="label">Leseleiste</div></div>
+                    <div tabindex="0" class="adp-card" id="adp-pause-anim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg><div class="label">Animationen</div></div>
+                </div>
+            </div>
+
+            <div class="adp-section">
+                <div class="adp-controls">
+                    <button id="adp-text-decrease" title="Text verkleinern">−</button>
+                    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;">
+                        <button id="adp-text-reset" title="Text zurücksetzen">100%</button>
+                    </div>
+                    <button id="adp-text-increase" title="Text vergrößern">+</button>
+                </div>
+            </div>
+
+            <div style="margin-top:6px;">
+                <button id="adp-reset" class="adp-reset" title="Einstellungen zurücksetzen">Einstellungen zurücksetzen</button>
+            </div>
+
+            <div style="text-align:center;margin-top:6px;color:#64748b;font-size:12px;">Shortcut: Alt+Shift+A öffnen/schließen</div>
+        </div>
     `;
 
     toolbar.style.display = settings.toolbarOpen ? 'flex' : 'none';
@@ -227,7 +239,10 @@ body.adp-strongfont * { font-weight: 600 !important; }
     });
 
     // other UI buttons
+    // header close and power
     toolbar.querySelector('#adp-close').addEventListener('click', () => { settings.toolbarOpen = false; toolbar.style.display = 'none'; saveSettings(); });
+    const powerBtn = toolbar.querySelector('#adp-power');
+    if (powerBtn) powerBtn.addEventListener('click', () => { /* simple visual affordance: toggle high contrast as "power" */ toggleHighContrast(); if (map['adp-contrast']?.el) setActive(map['adp-contrast'].el, settings.highContrast); });
     toggle.addEventListener('click', () => { settings.toolbarOpen = !settings.toolbarOpen; toolbar.style.display = settings.toolbarOpen ? 'flex' : 'none'; saveSettings(); });
 
     toolbar.querySelector('#adp-text-increase').addEventListener('click', () => changeTextScale(1));
