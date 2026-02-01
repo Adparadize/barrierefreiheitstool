@@ -1,377 +1,998 @@
-   Accessibility widget ready for GitHub/jsDelivr
-    - Based on user's `barrierefreiheit-enhanced.js` implementation
-    - Adds init guard and a minimal `window.adpAccessibility` API
-    - Designed to be copied to `accessibility-widget.js` in your repo root
-*/
+/**
+ * Accessibility Widget - CMS-unabhängiges Web Accessibility Tool
+ * WCAG 2.2 & BITV konform
+ * Keine Dependencies, Vanilla JavaScript
+ */
 
-(function () {
-    // avoid double-init when script is loaded multiple times
-    if (window.adpAccessibilityInitialized) return;
-    window.adpAccessibilityInitialized = true;
+(function() {
+    'use strict';
 
-    const STORAGE_KEY = 'accessibility-widget_v1';
-    const defaults = {
-        toolbarOpen: false,
-        textScaleStep: 2,
-        highContrast: false,
-        nightMode: false,
-        blueFilter: false,
-        colorBlind: false,
-        sansSerif: false,
-        dyslexic: false,
-        titleHighlight: false,
-        linksHighlight: false,
-        letterSpacing: false,
-        lineHeight: false,
-        strongFont: false,
+    // Namespace
+    window.AccessibilityWidget = window.AccessibilityWidget || {};
+
+    const WIDGET_ID = 'accessibility-widget';
+    const STORAGE_KEY = 'a11y-widget-settings';
+    const POSITIONS = ['bottom-right', 'bottom-left', 'middle-right', 'middle-left'];
+
+    // Standard-Settings
+    const DEFAULT_SETTINGS = {
+        position: 'bottom-right',
+        fontSize: 100,
+        highlightTitles: false,
+        highlightLinks: false,
+        letterSpacing: 0,
+        lineHeight: 1.5,
+        fontWeight: 400,
+        contrastMode: 'normal', // normal, dark, light, high, lowsat, monochrome
+        readingGuide: false,
+        stopAnimations: false,
         largeCursor: false,
-        readingBar: false,
-        hideImages: false,
-        pauseAnimations: false
+        panelOpen: false
     };
 
-    let settings = Object.assign({}, defaults, loadSettings());
-    let speech = { utterance: null, playing: false };
+    let settings = { ...DEFAULT_SETTINGS };
+    let widget = null;
+    let styleElement = null;
 
-    const style = document.createElement('style');
-    style.setAttribute('data-adparadize', 'styles');
-    style.textContent = `
-:root{ --adp-bg: #0b1220; --adp-surface:#0f172a; --adp-card:#0b1228; --adp-muted:#94a3b8; --adp-primary:#0078d4; --adp-primary-600:#0066bb; --adp-white:#ffffff; }
+    /**
+     * Initialisierung des Widgets
+     */
+    function init(options = {}) {
+        // Optionen mergen
+        const config = { ...DEFAULT_SETTINGS, ...options };
+        
+        // Existierendes Widget entfernen
+        if (document.getElementById(WIDGET_ID)) {
+            return console.warn('AccessibilityWidget bereits initialisiert');
+        }
 
-/* Floating toggle */
-#adp-accessibility-toggle { position: fixed; top: 44%; left: 12px; z-index: 2147483000; width:48px; height:48px; border-radius:12px; background: var(--adp-primary); display:flex;align-items:center;justify-content:center;box-shadow:0 12px 30px rgba(2,6,23,0.35); cursor:pointer; border: 2px solid rgba(255,255,255,0.06); }
-#adp-accessibility-toggle img { width:22px;height:22px; filter: drop-shadow(0 2px 1px rgba(0,0,0,.25)); }
+        // Settings laden
+        loadSettings();
 
-/* Toolbar container */
-#adp-accessibility-toolbar { position: fixed; top: 12%; left: 88px; z-index: 2147483000; width: 420px; max-height: 80vh; overflow:visible; background: transparent; border-radius: 16px; padding: 0; box-shadow: 0 18px 40px rgba(2,6,23,0.28); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; color:#0f172a; font-size:14px; display:flex;flex-direction:column; gap:0; backdrop-filter: blur(6px); }
+        // UI erstellen
+        createUI();
 
-/* Header bar (black) */
-#adp-accessibility-toolbar .header-bar { background:#0b0b0b; color:#fff; padding:10px 12px; border-radius: 12px 12px 0 0; display:flex; align-items:center; justify-content:space-between; gap:8px; }
-#adp-accessibility-toolbar .header-bar .title { font-weight:700; font-size:15px; color:#fff; }
-#adp-accessibility-toolbar .header-bar .actions { display:flex; gap:8px; align-items:center; }
-#adp-accessibility-toolbar .header-bar .circle-btn { width:36px; height:36px; border-radius:999px; background:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; border: none; }
-#adp-accessibility-toolbar .header-bar .circle-btn svg { width:16px; height:16px; color:#0b0b0b; }
-#adp-accessibility-toolbar .small { color:var(--adp-muted); font-size:12px; }
+        // Styles injizieren
+        injectStyles();
 
-/* Sections */
-/* Panel body (light) */
-.adp-panel { background:#f3f4f6; border-radius: 0 0 12px 12px; padding:14px; display:flex; flex-direction:column; gap:12px; border: 1px solid rgba(15,23,42,0.04); }
-.adp-section { display:flex; flex-direction:column; gap:10px; }
-.adp-section .section-title { font-weight:700; color:#0b1220; font-size:13px; }
+        // Event-Listener
+        attachEventListeners();
 
-/* Grid of cards (modern pill cards) */
-.adp-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
-.adp-card { display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px; border-radius:12px; background:#f8fafc; border:1px solid rgba(15,23,42,0.04); cursor:pointer; transition: transform .12s cubic-bezier(.2,.9,.2,1), box-shadow .12s, background .12s; min-height:70px; justify-content:center; text-align:center; }
-.adp-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(2,6,23,0.08); }
-.adp-card.active { background: var(--adp-primary); color:var(--adp-white); border-color: var(--adp-primary-600); box-shadow: 0 14px 40px rgba(0,120,212,0.12); }
-.adp-card svg { width:22px;height:22px; color:inherit; }
-.adp-card .label { font-size:13px; color:inherit; }
+        // Gespeicherte Settings anwenden
+        applySettings();
 
-/* Use subtle muted pill style for small controls */
-.adp-controls { display:flex; gap:8px; align-items:center; }
-.adp-controls button { padding:8px 12px; border-radius:10px; background:#f1f5f9; border:none; cursor:pointer; color: #0f172a; }
-.adp-reset { background: #0b0b0b; color: #fff; padding:12px;border-radius:10px;width:100%; border:none; font-weight:600; }
+        console.log('AccessibilityWidget initialized');
+    }
 
-/* Reading bar & large cursor */
-#adp-reading-bar { position: fixed; left: 0; right: 0; height: 48px; pointer-events:none; background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04)); mix-blend-mode:multiply; z-index:2147483000; display:none; }
-#adp-large-cursor { position: fixed; pointer-events: none; z-index: 2147483001; width: 36px; height: 36px; border-radius: 50%; background: rgba(0,120,212,0.14); transform: translate(-50%,-50%); border:2px solid rgba(0,120,212,0.18); display:none; }
+    /**
+     * UI-Struktur erstellen
+     */
+    function createUI() {
+        // Container für Widget
+        const container = document.createElement('div');
+        container.id = WIDGET_ID;
+        container.setAttribute('role', 'region');
+        container.setAttribute('aria-label', 'Accessibility Options Panel');
 
-/* Focus & reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .adp-card, #adp-accessibility-toggle { transition: none !important; }
-}
-#adp-accessibility-toolbar button:focus, .adp-card:focus { outline: 3px solid #ffd54a; outline-offset: 4px; }
-
-/* Dyslexic-friendly font fallback and spacing adjustments */
-body.adp-dyslexic * { font-family: 'OpenDyslexic', Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial !important; letter-spacing: 0.02em !important; }
-
-/* Title highlight */
-body.adp-title-highlight h1, body.adp-title-highlight h2, body.adp-title-highlight h3, body.adp-title-highlight h4, body.adp-title-highlight h5, body.adp-title-highlight h6 {
-    background: linear-gradient(90deg, rgba(255,243,205,0.95), rgba(255,249,230,0.5));
-    padding: 6px 10px; border-radius: 8px; display: inline-block; box-shadow: 0 6px 18px rgba(11,17,32,0.04);
-}
-
-/* Links highlight */
-body.adp-links-highlight a { outline: 2px solid rgba(255,191,0,0.16); background: rgba(255,191,0,0.08); border-radius: 6px; padding: 3px 6px; }
-
-/* Letter spacing */
-body.adp-letterspacing * { letter-spacing: 0.12em !important; }
-
-/* Line height */
-body.adp-lineheight * { line-height: 1.75 !important; }
-
-/* Stronger font weight */
-body.adp-strongfont * { font-weight: 600 !important; }
-
-@media (max-width:520px) {
-    #adp-accessibility-toolbar { left: 10px; right: 10px; width: auto; top:10%; max-height:80vh; }
-    .adp-grid { grid-template-columns: repeat(2, 1fr); }
-}
-`;
-    document.head.appendChild(style);
-
-    const toolbar = document.createElement('div');
-    toolbar.id = 'adp-accessibility-toolbar';
-    toolbar.setAttribute('role', 'region');
-    toolbar.setAttribute('aria-label', 'Barrierefreiheitswerkzeug');
-
-    toolbar.innerHTML = `
-        <div class="header-bar">
-            <div class="title">Barrierefreiheit</div>
-            <div class="actions">
-                <button id="adp-power" class="circle-btn" aria-label="Aktivieren/Deaktivieren" title="Aktivieren/Deaktivieren"> 
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M5.05 6.05a8 8 0 1013.9 0"/></svg>
-                </button>
-                <button id="adp-close" class="circle-btn" aria-label="Schließen" title="Schließen"> 
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-        </div>
-
-        <div class="adp-panel">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div class="small">Inhaltsanpassungen und Kontrast</div>
-                <select id="adp-lang" aria-label="Sprache"><option value="de">Deutsch (German)</option></select>
+        // HTML-Struktur
+        container.innerHTML = `
+            <div class="a11y-floating-button" role="button" tabindex="0" aria-label="Accessibility Options" aria-expanded="false" aria-controls="a11y-panel">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="8" r="2"/>
+                    <path d="M12 14c-3.31 0-6 1.79-6 4v2h12v-2c0-2.21-2.69-4-6-4z"/>
+                </svg>
             </div>
 
-            <div class="adp-section">
-                <div class="section-title">Inhaltsanpassungen</div>
-                <div class="adp-grid" role="toolbar" aria-label="Funktionen">
-                    <div tabindex="0" class="adp-card" id="adp-card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18M5 20h14M7 8h10"/></svg><div class="label">Titel hervorheben</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-card-links"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 14a5 5 0 007.07 0l1.41-1.41a5 5 0 00-7.07-7.07L10 6.93"/><path d="M14 10a5 5 0 00-7.07 0L5.52 11.41a5 5 0 007.07 7.07L14 17.07"/></svg><div class="label">Links hervorh.</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-card-dyslexic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg><div class="label">Dyslexie-Schrift</div></div>
+            <div class="a11y-panel" id="a11y-panel" hidden role="dialog" aria-labelledby="a11y-panel-title">
+                <div class="a11y-panel-header">
+                    <h2 id="a11y-panel-title" class="a11y-panel-title">Eingabehilfen</h2>
+                    <button class="a11y-close-btn" aria-label="Panel schließen">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        </svg>
+                    </button>
+                </div>
 
-                    <div tabindex="0" class="adp-card" id="adp-card-letterspacing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 18h18"/></svg><div class="label">Zeichenabstand</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-card-lineheight"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M10 12h4M4 18h16"/></svg><div class="label">Zeilenhöhe</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-card-fontweight"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h6a2 2 0 012 2v12a2 2 0 01-2 2H6z"/><path d="M14 8h2a2 2 0 012 2v4a2 2 0 01-2 2h-2"/></svg><div class="label">Schriftstärke</div></div>
+                <div class="a11y-panel-content">
+                    
+                    <!-- Text Anpassungen -->
+                    <fieldset class="a11y-fieldset">
+                        <legend class="a11y-legend">Textanpassung</legend>
+                        
+                        <div class="a11y-control">
+                            <label for="a11y-font-size">Schriftgröße: <span class="a11y-value">100%</span></label>
+                            <input type="range" id="a11y-font-size" class="a11y-slider" min="80" max="200" value="100" aria-label="Schriftgröße Prozent" />
+                        </div>
+
+                        <div class="a11y-control">
+                            <label for="a11y-line-height">Zeilenhöhe: <span class="a11y-value">1.5</span></label>
+                            <input type="range" id="a11y-line-height" class="a11y-slider" min="1" max="2.5" step="0.1" value="1.5" aria-label="Zeilenhöhe" />
+                        </div>
+
+                        <div class="a11y-control">
+                            <label for="a11y-letter-spacing">Zeichenabstand: <span class="a11y-value">0px</span></label>
+                            <input type="range" id="a11y-letter-spacing" class="a11y-slider" min="0" max="10" step="0.5" value="0" aria-label="Zeichenabstand Pixel" />
+                        </div>
+
+                        <div class="a11y-control checkbox">
+                            <input type="checkbox" id="a11y-bold" class="a11y-checkbox" />
+                            <label for="a11y-bold">Text fettgedruckt</label>
+                        </div>
+
+                        <div class="a11y-control checkbox">
+                            <input type="checkbox" id="a11y-titles" class="a11y-checkbox" />
+                            <label for="a11y-titles">Titel hervorheben</label>
+                        </div>
+
+                        <div class="a11y-control checkbox">
+                            <input type="checkbox" id="a11y-links" class="a11y-checkbox" />
+                            <label for="a11y-links">Links hervorheben</label>
+                        </div>
+                    </fieldset>
+
+                    <!-- Farb-Modus -->
+                    <fieldset class="a11y-fieldset">
+                        <legend class="a11y-legend">Farbmodus</legend>
+                        
+                        <div class="a11y-radio-group">
+                            <div class="a11y-control radio">
+                                <input type="radio" id="a11y-contrast-normal" name="contrast" value="normal" class="a11y-radio" />
+                                <label for="a11y-contrast-normal">Normal</label>
+                            </div>
+                            <div class="a11y-control radio">
+                                <input type="radio" id="a11y-contrast-dark" name="contrast" value="dark" class="a11y-radio" />
+                                <label for="a11y-contrast-dark">Dunkel</label>
+                            </div>
+                            <div class="a11y-control radio">
+                                <input type="radio" id="a11y-contrast-light" name="contrast" value="light" class="a11y-radio" />
+                                <label for="a11y-contrast-light">Hell</label>
+                            </div>
+                            <div class="a11y-control radio">
+                                <input type="radio" id="a11y-contrast-high" name="contrast" value="high" class="a11y-radio" />
+                                <label for="a11y-contrast-high">Hoher Kontrast</label>
+                            </div>
+                            <div class="a11y-control radio">
+                                <input type="radio" id="a11y-contrast-lowsat" name="contrast" value="lowsat" class="a11y-radio" />
+                                <label for="a11y-contrast-lowsat">Niedrige Sättigung</label>
+                            </div>
+                            <div class="a11y-control radio">
+                                <input type="radio" id="a11y-contrast-monochrome" name="contrast" value="monochrome" class="a11y-radio" />
+                                <label for="a11y-contrast-monochrome">Monochrom</label>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Werkzeuge -->
+                    <fieldset class="a11y-fieldset">
+                        <legend class="a11y-legend">Werkzeuge</legend>
+                        
+                        <div class="a11y-control checkbox">
+                            <input type="checkbox" id="a11y-reading-guide" class="a11y-checkbox" />
+                            <label for="a11y-reading-guide">Lesehilfe aktivieren</label>
+                        </div>
+
+                        <div class="a11y-control checkbox">
+                            <input type="checkbox" id="a11y-stop-animations" class="a11y-checkbox" />
+                            <label for="a11y-stop-animations">Animationen stoppen</label>
+                        </div>
+
+                        <div class="a11y-control checkbox">
+                            <input type="checkbox" id="a11y-large-cursor" class="a11y-checkbox" />
+                            <label for="a11y-large-cursor">Großer Cursor</label>
+                        </div>
+                    </fieldset>
+
+                    <!-- Reset Button -->
+                    <button id="a11y-reset" class="a11y-reset-btn" aria-label="Alle Einstellungen zurücksetzen">
+                        Alles zurücksetzen
+                    </button>
                 </div>
             </div>
+        `;
 
-            <div class="adp-section">
-                <div class="section-title">Farbanpassungen</div>
-                <div class="adp-grid">
-                    <div tabindex="0" class="adp-card" id="adp-contrast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v18"/></svg><div class="label">Dunkler Kontrast</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-night"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><div class="label">Nacht</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/></svg><div class="label">Blaufilter</div></div>
+        document.body.appendChild(container);
+        widget = container;
+    }
 
-                    <div tabindex="0" class="adp-card" id="adp-colorblind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg><div class="label">Farbschwäche</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-sans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h16"/><path d="M8 4l4 16 4-16"/></svg><div class="label">Serifenlos</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-hide-images"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M3 9l9 6 9-6"/></svg><div class="label">Bilder ausblenden</div></div>
-                </div>
-            </div>
+    /**
+     * CSS in den DOM injizieren
+     */
+    function injectStyles() {
+        if (document.getElementById('a11y-widget-styles')) return;
 
-            <div class="adp-section">
-                <div class="section-title">Werkzeuge</div>
-                <div class="adp-grid">
-                    <div tabindex="0" class="adp-card" id="adp-large-cursor-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/></svg><div class="label">Großer Cursor</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-readingbar-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="18" height="4" rx="1"/></svg><div class="label">Leseleiste</div></div>
-                    <div tabindex="0" class="adp-card" id="adp-pause-anim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg><div class="label">Animationen</div></div>
-                </div>
-            </div>
+        const style = document.createElement('style');
+        style.id = 'a11y-widget-styles';
+        style.textContent = `
+            /* Accessibility Widget Styles */
+            #${WIDGET_ID} {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                --a11y-primary: #0066cc;
+                --a11y-text: #333;
+                --a11y-bg: #fff;
+                --a11y-border: #ddd;
+                --a11y-shadow: rgba(0, 0, 0, 0.1);
+            }
 
-            <div class="adp-section">
-                <div class="adp-controls">
-                    <button id="adp-text-decrease" title="Text verkleinern">−</button>
-                    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;">
-                        <button id="adp-text-reset" title="Text zurücksetzen">100%</button>
-                    </div>
-                    <button id="adp-text-increase" title="Text vergrößern">+</button>
-                </div>
-            </div>
+            #${WIDGET_ID} * {
+                box-sizing: border-box;
+            }
 
-            <div style="margin-top:6px;">
-                <button id="adp-reset" class="adp-reset" title="Einstellungen zurücksetzen">Einstellungen zurücksetzen</button>
-            </div>
+            /* Floating Button */
+            .a11y-floating-button {
+                position: fixed;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: var(--a11y-primary);
+                color: white;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 2px 8px var(--a11y-shadow);
+                transition: transform 0.2s, box-shadow 0.2s;
+                z-index: 999998;
+                border: none;
+                padding: 0;
+            }
 
-            <div style="text-align:center;margin-top:6px;color:#64748b;font-size:12px;">Shortcut: Alt+Shift+A öffnen/schließen</div>
-        </div>
-    `;
+            .a11y-floating-button:hover {
+                transform: scale(1.05);
+                box-shadow: 0 4px 12px var(--a11y-shadow);
+            }
 
-    toolbar.style.display = settings.toolbarOpen ? 'flex' : 'none';
-    document.body.appendChild(toolbar);
+            .a11y-floating-button:focus {
+                outline: 2px solid #fff;
+                outline-offset: 2px;
+            }
 
-    const toggle = document.createElement('button');
-    toggle.id = 'adp-accessibility-toggle';
-    toggle.setAttribute('aria-label', 'Barrierefreiheit öffnen');
-    toggle.title = 'Barrierefreiheit öffnen (Alt+Shift+A)';
-    toggle.innerHTML = '<img src="data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;28&quot; height=&quot;28&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;white&quot;><path d=&quot;M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm1 15h-2v-2h2v2zm1.07-7.75l-.9.92c-.46.47-.59.86-.59 1.58V13h-2v-.25c0-1.1.45-1.99 1.17-2.71l1.24-1.27A1.993 1.993 0 0012 6c-1.1 0-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z&quot;/></svg>';
-    document.body.appendChild(toggle);
+            .a11y-floating-button:active {
+                transform: scale(0.95);
+            }
 
-    const largeCursor = document.createElement('div');
-    largeCursor.id = 'adp-large-cursor';
-    largeCursor.style.display = settings.largeCursor ? 'block' : 'none';
-    document.body.appendChild(largeCursor);
+            /* Panel */
+            .a11y-panel {
+                position: fixed;
+                width: 360px;
+                max-height: 80vh;
+                background: var(--a11y-bg);
+                border: 1px solid var(--a11y-border);
+                border-radius: 8px;
+                box-shadow: 0 4px 24px var(--a11y-shadow);
+                z-index: 999999;
+                display: flex;
+                flex-direction: column;
+                color: var(--a11y-text);
+            }
 
-    const readingBar = document.createElement('div');
-    readingBar.id = 'adp-reading-bar';
-    readingBar.style.display = settings.readingBar ? 'block' : 'none';
-    document.body.appendChild(readingBar);
+            .a11y-panel:not([hidden]) {
+                display: flex;
+            }
 
-    // helper to map card id -> state toggle function
-    function setActive(el, active) { el.classList.toggle('active', !!active); }
+            /* Panel Header */
+            .a11y-panel-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 16px;
+                border-bottom: 1px solid var(--a11y-border);
+            }
 
-    // wire up card elements
-    const map = {
-        'adp-contrast': { el: null, toggle: toggleHighContrast, stateKey: 'highContrast' },
-        'adp-night': { el: null, toggle: toggleNightMode, stateKey: 'nightMode' },
-        'adp-blue': { el: null, toggle: toggleBlueFilter, stateKey: 'blueFilter' },
-        'adp-colorblind': { el: null, toggle: toggleColorBlind, stateKey: 'colorBlind' },
-        'adp-sans': { el: null, toggle: toggleSansSerif, stateKey: 'sansSerif' },
-        'adp-hide-images': { el: null, toggle: toggleHideImages, stateKey: 'hideImages' },
-        'adp-large-cursor-toggle': { el: null, toggle: toggleLargeCursor, stateKey: 'largeCursor' },
-        'adp-readingbar-toggle': { el: null, toggle: toggleReadingBar, stateKey: 'readingBar' },
-        'adp-pause-anim': { el: null, toggle: togglePauseAnimations, stateKey: 'pauseAnimations' },
-        'adp-card-dyslexic': { el: null, toggle: toggleDyslexic, stateKey: 'dyslexic' },
-        'adp-card-title': { el: null, toggle: toggleTitleHighlight, stateKey: 'titleHighlight' },
-        'adp-card-links': { el: null, toggle: toggleLinksHighlight, stateKey: 'linksHighlight' },
-        'adp-card-letterspacing': { el: null, toggle: toggleLetterSpacing, stateKey: 'letterSpacing' },
-        'adp-card-lineheight': { el: null, toggle: toggleLineHeight, stateKey: 'lineHeight' },
-        'adp-card-fontweight': { el: null, toggle: toggleStrongFont, stateKey: 'strongFont' }
-    };
+            .a11y-panel-title {
+                margin: 0;
+                font-size: 18px;
+                font-weight: 600;
+            }
 
-    Object.keys(map).forEach(id => { const el = toolbar.querySelector('#'+id); if (el) map[id].el = el; });
+            .a11y-close-btn {
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 4px;
+                color: inherit;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
 
-    // attach clicks
-    Object.keys(map).forEach(id => {
-        const entry = map[id];
-        if (!entry.el) return;
-        entry.el.addEventListener('click', () => {
-            if (entry.toggle) entry.toggle();
-            if (entry.stateKey) setActive(entry.el, settings[entry.stateKey]);
+            .a11y-close-btn:focus {
+                outline: 2px solid var(--a11y-primary);
+                outline-offset: 2px;
+            }
+
+            /* Panel Content */
+            .a11y-panel-content {
+                overflow-y: auto;
+                padding: 16px;
+                flex: 1;
+            }
+
+            /* Fieldset */
+            .a11y-fieldset {
+                margin: 0 0 20px 0;
+                padding: 12px;
+                border: 1px solid var(--a11y-border);
+                border-radius: 6px;
+            }
+
+            .a11y-legend {
+                font-weight: 600;
+                font-size: 14px;
+                margin-bottom: 12px;
+                display: block;
+                padding: 0 4px;
+            }
+
+            /* Controls */
+            .a11y-control {
+                margin-bottom: 12px;
+            }
+
+            .a11y-control:last-child {
+                margin-bottom: 0;
+            }
+
+            .a11y-control label {
+                display: flex;
+                align-items: center;
+                font-size: 14px;
+                gap: 8px;
+                cursor: pointer;
+                user-select: none;
+            }
+
+            /* Slider */
+            .a11y-slider {
+                width: 100%;
+                height: 6px;
+                border-radius: 3px;
+                background: var(--a11y-border);
+                outline: none;
+                -webkit-appearance: none;
+                margin-top: 4px;
+            }
+
+            .a11y-slider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: var(--a11y-primary);
+                cursor: pointer;
+                border: 2px solid white;
+                box-shadow: 0 2px 4px var(--a11y-shadow);
+            }
+
+            .a11y-slider::-moz-range-thumb {
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: var(--a11y-primary);
+                cursor: pointer;
+                border: 2px solid white;
+                box-shadow: 0 2px 4px var(--a11y-shadow);
+            }
+
+            .a11y-slider:focus {
+                outline: 2px solid var(--a11y-primary);
+                outline-offset: 2px;
+            }
+
+            .a11y-value {
+                font-weight: 600;
+                color: var(--a11y-primary);
+            }
+
+            /* Checkbox & Radio */
+            .a11y-checkbox,
+            .a11y-radio {
+                width: 18px;
+                height: 18px;
+                cursor: pointer;
+                margin: 0;
+            }
+
+            .a11y-control.checkbox label,
+            .a11y-control.radio label {
+                flex-direction: row;
+                margin-bottom: 8px;
+            }
+
+            .a11y-radio-group {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            /* Buttons */
+            .a11y-reset-btn {
+                width: 100%;
+                padding: 12px;
+                background: var(--a11y-primary);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: opacity 0.2s;
+                margin-top: 8px;
+            }
+
+            .a11y-reset-btn:hover {
+                opacity: 0.9;
+            }
+
+            .a11y-reset-btn:focus {
+                outline: 2px solid #000;
+                outline-offset: 2px;
+            }
+
+            /* Positioning */
+            #${WIDGET_ID}.bottom-right .a11y-floating-button {
+                bottom: 20px;
+                right: 20px;
+            }
+
+            #${WIDGET_ID}.bottom-right .a11y-panel {
+                bottom: 80px;
+                right: 20px;
+            }
+
+            #${WIDGET_ID}.bottom-left .a11y-floating-button {
+                bottom: 20px;
+                left: 20px;
+            }
+
+            #${WIDGET_ID}.bottom-left .a11y-panel {
+                bottom: 80px;
+                left: 20px;
+            }
+
+            #${WIDGET_ID}.middle-right .a11y-floating-button {
+                top: 50%;
+                transform: translateY(-50%);
+                right: 20px;
+            }
+
+            #${WIDGET_ID}.middle-right .a11y-panel {
+                top: 50%;
+                transform: translateY(-50%);
+                right: 80px;
+            }
+
+            #${WIDGET_ID}.middle-left .a11y-floating-button {
+                top: 50%;
+                transform: translateY(-50%);
+                left: 20px;
+            }
+
+            #${WIDGET_ID}.middle-left .a11y-panel {
+                top: 50%;
+                transform: translateY(-50%);
+                left: 80px;
+            }
+
+            /* Highlight Styles */
+            .a11y-highlight-titles h1,
+            .a11y-highlight-titles h2,
+            .a11y-highlight-titles h3,
+            .a11y-highlight-titles h4,
+            .a11y-highlight-titles h5,
+            .a11y-highlight-titles h6 {
+                outline: 2px solid var(--a11y-primary);
+                outline-offset: 2px;
+                padding: 4px;
+            }
+
+            .a11y-highlight-links a {
+                outline: 2px solid var(--a11y-primary);
+                outline-offset: 2px;
+                padding: 2px 4px;
+            }
+
+            /* Reading Guide */
+            .a11y-reading-guide-line {
+                position: fixed;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: rgba(0, 102, 204, 0.3);
+                pointer-events: none;
+                z-index: 999997;
+            }
+
+            /* Large Cursor */
+            .a11y-large-cursor * {
+                cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="none" stroke="black" stroke-width="2"/><circle cx="16" cy="16" r="3" fill="black"/></svg>') 16 16, auto !important;
+            }
+
+            /* Stop Animations */
+            .a11y-stop-animations * {
+                animation: none !important;
+                transition: none !important;
+            }
+
+            .a11y-stop-animations img,
+            .a11y-stop-animations video {
+                animation: none !important;
+            }
+
+            /* Contrast Modes */
+            .a11y-contrast-dark {
+                background: #1a1a1a !important;
+                color: #e0e0e0 !important;
+            }
+
+            .a11y-contrast-light {
+                background: #f5f5f5 !important;
+                color: #000 !important;
+            }
+
+            .a11y-contrast-high {
+                background: #000 !important;
+                color: #fff !important;
+                border-color: #fff !important;
+            }
+
+            .a11y-contrast-high a {
+                color: #ffff00 !important;
+                text-decoration: underline !important;
+            }
+
+            .a11y-contrast-lowsat {
+                filter: saturate(0.3) !important;
+            }
+
+            .a11y-contrast-monochrome {
+                filter: grayscale(1) !important;
+            }
+
+            /* Responsive */
+            @media (max-width: 480px) {
+                .a11y-panel {
+                    width: calc(100vw - 40px);
+                    max-height: 70vh;
+                }
+
+                #${WIDGET_ID}.middle-right .a11y-panel,
+                #${WIDGET_ID}.middle-left .a11y-panel {
+                    top: auto !important;
+                    transform: none !important;
+                    bottom: 80px;
+                    left: 20px !important;
+                    right: 20px !important;
+                }
+            }
+
+            /* Print Styles */
+            @media print {
+                #${WIDGET_ID} {
+                    display: none !important;
+                }
+            }
+        `;
+
+        document.head.appendChild(style);
+        styleElement = style;
+    }
+
+    /**
+     * Event-Listener attachen
+     */
+    function attachEventListeners() {
+        const button = widget.querySelector('.a11y-floating-button');
+        const closeBtn = widget.querySelector('.a11y-close-btn');
+        const panel = widget.querySelector('.a11y-panel');
+        const resetBtn = widget.querySelector('#a11y-reset');
+
+        // Button click
+        button.addEventListener('click', togglePanel);
+        button.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                togglePanel();
+            }
         });
-        entry.el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); entry.el.click(); } });
-    });
 
-    // other UI buttons
-    // header close and power
-    toolbar.querySelector('#adp-close').addEventListener('click', () => { settings.toolbarOpen = false; toolbar.style.display = 'none'; saveSettings(); });
-    const powerBtn = toolbar.querySelector('#adp-power');
-    if (powerBtn) powerBtn.addEventListener('click', () => { /* simple visual affordance: toggle high contrast as "power" */ toggleHighContrast(); if (map['adp-contrast']?.el) setActive(map['adp-contrast'].el, settings.highContrast); });
-    toggle.addEventListener('click', () => { settings.toolbarOpen = !settings.toolbarOpen; toolbar.style.display = settings.toolbarOpen ? 'flex' : 'none'; saveSettings(); });
+        // Close button
+        closeBtn.addEventListener('click', closePanel);
 
-    toolbar.querySelector('#adp-text-increase').addEventListener('click', () => changeTextScale(1));
-    toolbar.querySelector('#adp-text-decrease').addEventListener('click', () => changeTextScale(-1));
-    toolbar.querySelector('#adp-text-reset').addEventListener('click', () => resetTextScale());
-    toolbar.querySelector('#adp-reset').addEventListener('click', () => resetAllSettings());
+        // Panel close
+        panel.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closePanel();
+            }
+        });
 
-    // keyboard shortcut
-    document.addEventListener('keydown', (e) => {
-        if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'a') {
-            e.preventDefault(); settings.toolbarOpen = !settings.toolbarOpen; toolbar.style.display = settings.toolbarOpen ? 'flex' : 'none'; saveSettings();
+        // Reset button
+        resetBtn.addEventListener('click', resetSettings);
+
+        // Slider inputs
+        const fontSizeInput = panel.querySelector('#a11y-font-size');
+        const lineHeightInput = panel.querySelector('#a11y-line-height');
+        const letterSpacingInput = panel.querySelector('#a11y-letter-spacing');
+
+        fontSizeInput.addEventListener('input', (e) => {
+            settings.fontSize = parseInt(e.target.value);
+            updateSliderLabel(e.target);
+            applySettings();
+            saveSettings();
+        });
+
+        lineHeightInput.addEventListener('input', (e) => {
+            settings.lineHeight = parseFloat(e.target.value);
+            updateSliderLabel(e.target);
+            applySettings();
+            saveSettings();
+        });
+
+        letterSpacingInput.addEventListener('input', (e) => {
+            settings.letterSpacing = parseFloat(e.target.value);
+            updateSliderLabel(e.target);
+            applySettings();
+            saveSettings();
+        });
+
+        // Checkboxes
+        const boldCheckbox = panel.querySelector('#a11y-bold');
+        const titlesCheckbox = panel.querySelector('#a11y-titles');
+        const linksCheckbox = panel.querySelector('#a11y-links');
+        const readingGuideCheckbox = panel.querySelector('#a11y-reading-guide');
+        const stopAnimationsCheckbox = panel.querySelector('#a11y-stop-animations');
+        const largeCursorCheckbox = panel.querySelector('#a11y-large-cursor');
+
+        boldCheckbox.addEventListener('change', (e) => {
+            settings.fontWeight = e.target.checked ? 700 : 400;
+            applySettings();
+            saveSettings();
+        });
+
+        titlesCheckbox.addEventListener('change', (e) => {
+            settings.highlightTitles = e.target.checked;
+            applySettings();
+            saveSettings();
+        });
+
+        linksCheckbox.addEventListener('change', (e) => {
+            settings.highlightLinks = e.target.checked;
+            applySettings();
+            saveSettings();
+        });
+
+        readingGuideCheckbox.addEventListener('change', (e) => {
+            settings.readingGuide = e.target.checked;
+            applySettings();
+            saveSettings();
+        });
+
+        stopAnimationsCheckbox.addEventListener('change', (e) => {
+            settings.stopAnimations = e.target.checked;
+            applySettings();
+            saveSettings();
+        });
+
+        largeCursorCheckbox.addEventListener('change', (e) => {
+            settings.largeCursor = e.target.checked;
+            applySettings();
+            saveSettings();
+        });
+
+        // Radio buttons (Contrast modes)
+        const contrastRadios = panel.querySelectorAll('input[name="contrast"]');
+        contrastRadios.forEach((radio) => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    settings.contrastMode = e.target.value;
+                    applySettings();
+                    saveSettings();
+                }
+            });
+        });
+
+        // Focus trap
+        setupFocusTrap();
+    }
+
+    /**
+     * Toggle Panel
+     */
+    function togglePanel() {
+        const panel = widget.querySelector('.a11y-panel');
+        const button = widget.querySelector('.a11y-floating-button');
+
+        if (panel.hasAttribute('hidden')) {
+            openPanel();
+        } else {
+            closePanel();
         }
-    });
+    }
 
-    document.addEventListener('keydown', function onKeyDown(e) { if (e.key === 'Tab') document.documentElement.classList.add('adp-keyboard'); });
+    /**
+     * Panel öffnen
+     */
+    function openPanel() {
+        const panel = widget.querySelector('.a11y-panel');
+        const button = widget.querySelector('.a11y-floating-button');
 
-    // pointer tracking
-    document.addEventListener('mousemove', (e) => {
+        panel.removeAttribute('hidden');
+        button.setAttribute('aria-expanded', 'true');
+        settings.panelOpen = true;
+
+        // Focus auf ersten Input
+        setTimeout(() => {
+            const firstInput = panel.querySelector('input');
+            if (firstInput) firstInput.focus();
+        }, 0);
+    }
+
+    /**
+     * Panel schließen
+     */
+    function closePanel() {
+        const panel = widget.querySelector('.a11y-panel');
+        const button = widget.querySelector('.a11y-floating-button');
+
+        panel.setAttribute('hidden', '');
+        button.setAttribute('aria-expanded', 'false');
+        button.focus();
+        settings.panelOpen = false;
+    }
+
+    /**
+     * Slider Label updaten
+     */
+    function updateSliderLabel(input) {
+        const value = input.value;
+        const label = input.closest('.a11y-control').querySelector('.a11y-value');
+        if (label) {
+            if (input.id === 'a11y-font-size') {
+                label.textContent = value + '%';
+            } else if (input.id === 'a11y-line-height') {
+                label.textContent = parseFloat(value).toFixed(1);
+            } else if (input.id === 'a11y-letter-spacing') {
+                label.textContent = value + 'px';
+            }
+        }
+    }
+
+    /**
+     * Settings anwenden
+     */
+    function applySettings() {
+        const body = document.body;
+
+        // Remove all a11y classes
+        body.classList.remove(
+            'a11y-highlight-titles',
+            'a11y-highlight-links',
+            'a11y-reading-guide',
+            'a11y-stop-animations',
+            'a11y-large-cursor',
+            'a11y-contrast-dark',
+            'a11y-contrast-light',
+            'a11y-contrast-high',
+            'a11y-contrast-lowsat',
+            'a11y-contrast-monochrome'
+        );
+
+        // Apply font size
+        document.documentElement.style.fontSize = settings.fontSize + '%';
+
+        // Apply line height & letter spacing globally
+        const style = document.createElement('style');
+        style.id = 'a11y-temp-styles';
+        const existing = document.getElementById('a11y-temp-styles');
+        if (existing) existing.remove();
+
+        style.textContent = `
+            * {
+                line-height: ${settings.lineHeight} !important;
+                letter-spacing: ${settings.letterSpacing}px !important;
+                font-weight: ${settings.fontWeight} !important;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Apply highlights
+        if (settings.highlightTitles) {
+            body.classList.add('a11y-highlight-titles');
+        }
+        if (settings.highlightLinks) {
+            body.classList.add('a11y-highlight-links');
+        }
+
+        // Apply reading guide
+        if (settings.readingGuide) {
+            body.classList.add('a11y-reading-guide');
+            createReadingGuide();
+        } else {
+            removeReadingGuide();
+        }
+
+        // Apply animations stop
+        if (settings.stopAnimations) {
+            body.classList.add('a11y-stop-animations');
+        }
+
+        // Apply large cursor
         if (settings.largeCursor) {
-            largeCursor.style.display = 'block';
-            largeCursor.style.left = e.clientX + 'px';
-            largeCursor.style.top = e.clientY + 'px';
+            body.classList.add('a11y-large-cursor');
         }
-        if (settings.readingBar) {
-            readingBar.style.display = 'block';
-            const h = Math.max(28, Math.min(96, window.innerHeight * 0.08));
-            readingBar.style.height = h + 'px';
-            const top = Math.max(0, e.clientY - h / 2);
-            readingBar.style.top = top + 'px';
+
+        // Apply contrast mode
+        if (settings.contrastMode !== 'normal') {
+            body.classList.add('a11y-contrast-' + settings.contrastMode);
         }
-    });
 
-    document.addEventListener('mouseleave', () => { if (settings.largeCursor) largeCursor.style.display = 'none'; });
-
-    document.addEventListener('keydown', (e) => {
-        if (!settings.readingBar) return;
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-            e.preventDefault(); const step = Math.max(20, Math.round(window.innerHeight * 0.05)); const currentTop = parseInt(readingBar.style.top || '0', 10); readingBar.style.top = (e.key === 'ArrowDown' ? currentTop + step : currentTop - step) + 'px';
-        }
-    });
-
-    // TTS (kept minimal)
-    function startTTS() { stopTTS(); const sel = window.getSelection().toString().trim(); const text = sel || document.querySelector('main')?.innerText || document.body.innerText; if (!text) return; speech.utterance = new SpeechSynthesisUtterance(text); speech.utterance.lang = detectLanguage(text) || navigator.language || 'de-DE'; speech.utterance.rate = 1; speech.utterance.onend = () => { speech.playing = false; }; speechSynthesis.speak(speech.utterance); speech.playing = true; }
-    function pauseTTS() { if (speechSynthesis.speaking) { if (speechSynthesis.paused) speechSynthesis.resume(); else speechSynthesis.pause(); } }
-    function stopTTS() { if (speechSynthesis.speaking || speechSynthesis.paused) speechSynthesis.cancel(); speech.playing = false; speech.utterance = null; }
-
-    // toggles
-    function toggleHighContrast() { settings.highContrast = !settings.highContrast; applyClasses(); saveSettings(); }
-    function toggleNightMode() { settings.nightMode = !settings.nightMode; applyClasses(); saveSettings(); }
-    function toggleBlueFilter() { settings.blueFilter = !settings.blueFilter; applyClasses(); saveSettings(); }
-    function toggleColorBlind() { settings.colorBlind = !settings.colorBlind; applyClasses(); saveSettings(); }
-    function toggleSansSerif() { settings.sansSerif = !settings.sansSerif; applyClasses(); saveSettings(); }
-    function toggleDyslexic() { settings.dyslexic = !settings.dyslexic; if (settings.dyslexic) _ensureDyslexicFontLoaded(); applyClasses(); saveSettings(); }
-    function _ensureDyslexicFontLoaded() {
-        if (document.getElementById('adp-open-dyslexic')) return;
-        try {
-            const l = document.createElement('link');
-            l.id = 'adp-open-dyslexic';
-            l.rel = 'stylesheet';
-            l.href = 'https://cdn.jsdelivr.net/gh/antijingoist/open-dyslexic@master/OpenDyslexic.css';
-            l.crossOrigin = 'anonymous';
-            document.head.appendChild(l);
-        } catch (e) {
-            // fail silently; CSS fallback will still apply
-        }
-    }
-    function toggleTitleHighlight() { settings.titleHighlight = !settings.titleHighlight; applyClasses(); saveSettings(); }
-    function toggleLinksHighlight() { settings.linksHighlight = !settings.linksHighlight; applyClasses(); saveSettings(); }
-    function toggleLetterSpacing() { settings.letterSpacing = !settings.letterSpacing; applyClasses(); saveSettings(); }
-    function toggleLineHeight() { settings.lineHeight = !settings.lineHeight; applyClasses(); saveSettings(); }
-    function toggleStrongFont() { settings.strongFont = !settings.strongFont; applyClasses(); saveSettings(); }
-    function toggleLargeCursor() { settings.largeCursor = !settings.largeCursor; largeCursor.style.display = settings.largeCursor ? 'block' : 'none'; applyClasses(); saveSettings(); }
-    function toggleReadingBar() { settings.readingBar = !settings.readingBar; readingBar.style.display = settings.readingBar ? 'block' : 'none'; saveSettings(); }
-    function toggleHideImages() { settings.hideImages = !settings.hideImages; applyClasses(); saveSettings(); }
-    function togglePauseAnimations() { settings.pauseAnimations = !settings.pauseAnimations; applyClasses(); saveSettings(); }
-
-    function changeTextScale(dir) { settings.textScaleStep = Math.max(0, Math.min(8, (settings.textScaleStep || 2) + dir)); applyTextScale(); saveSettings(); }
-    function resetTextScale() { settings.textScaleStep = 2; applyTextScale(); saveSettings(); }
-    function resetAllSettings() { settings = Object.assign({}, defaults); applyAll(); saveSettings(); stopTTS(); }
-
-    function applyTextScale() { const percent = 80 + (settings.textScaleStep * 10); document.documentElement.style.fontSize = percent + '%'; document.querySelectorAll('input, textarea, select, button').forEach((el) => { el.style.fontSize = Math.min(18, Math.max(12, Math.round(percent / 10))) + 'px'; }); }
-
-    function applyClasses() {
-        document.body.classList.toggle('adp-high-contrast', settings.highContrast);
-        document.body.classList.toggle('adp-night', settings.nightMode);
-        document.body.classList.toggle('adp-blue-filter', settings.blueFilter);
-        document.body.classList.toggle('adp-colorblind', settings.colorBlind);
-        document.body.classList.toggle('adp-sans', settings.sansSerif);
-        document.body.classList.toggle('adp-dyslexic', settings.dyslexic);
-        document.body.classList.toggle('adp-title-highlight', settings.titleHighlight);
-        document.body.classList.toggle('adp-links-highlight', settings.linksHighlight);
-        document.body.classList.toggle('adp-letterspacing', settings.letterSpacing);
-        document.body.classList.toggle('adp-lineheight', settings.lineHeight);
-        document.body.classList.toggle('adp-strongfont', settings.strongFont);
-        document.body.classList.toggle('adp-hide-images', settings.hideImages);
-        document.body.classList.toggle('adp-pause-anim', settings.pauseAnimations);
+        // Update UI
+        updateUI();
     }
 
-    function applyAll() { applyClasses(); applyTextScale(); toolbar.style.display = settings.toolbarOpen ? 'flex' : 'none'; largeCursor.style.display = settings.largeCursor ? 'block' : 'none'; readingBar.style.display = settings.readingBar ? 'block' : 'none'; updateCardStates(); }
+    /**
+     * UI Controls mit aktuellen Settings updaten
+     */
+    function updateUI() {
+        if (!widget) return;
 
-    function updateCardStates() {
-        Object.keys(map).forEach(id => { const entry = map[id]; if (!entry.el) return; if (entry.stateKey) setActive(entry.el, settings[entry.stateKey]); });
+        const panel = widget.querySelector('.a11y-panel');
+
+        // Update sliders
+        const fontSizeInput = panel.querySelector('#a11y-font-size');
+        const lineHeightInput = panel.querySelector('#a11y-line-height');
+        const letterSpacingInput = panel.querySelector('#a11y-letter-spacing');
+
+        fontSizeInput.value = settings.fontSize;
+        updateSliderLabel(fontSizeInput);
+
+        lineHeightInput.value = settings.lineHeight;
+        updateSliderLabel(lineHeightInput);
+
+        letterSpacingInput.value = settings.letterSpacing;
+        updateSliderLabel(letterSpacingInput);
+
+        // Update checkboxes
+        panel.querySelector('#a11y-bold').checked = settings.fontWeight === 700;
+        panel.querySelector('#a11y-titles').checked = settings.highlightTitles;
+        panel.querySelector('#a11y-links').checked = settings.highlightLinks;
+        panel.querySelector('#a11y-reading-guide').checked = settings.readingGuide;
+        panel.querySelector('#a11y-stop-animations').checked = settings.stopAnimations;
+        panel.querySelector('#a11y-large-cursor').checked = settings.largeCursor;
+
+        // Update radio buttons
+        const contrastRadio = panel.querySelector(`input[value="${settings.contrastMode}"]`);
+        if (contrastRadio) {
+            contrastRadio.checked = true;
+        }
     }
 
-    function saveSettings() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch (e) {} }
-    function loadSettings() { try { const raw = localStorage.getItem(STORAGE_KEY); if (!raw) return {}; return JSON.parse(raw); } catch (e) { return {}; } }
-    function detectLanguage(text) { if (/[äöüß]/i.test(text)) return 'de-DE'; if (/[àéèêîô]/i.test(text)) return 'fr-FR'; return null; }
+    /**
+     * Settings zurücksetzen
+     */
+    function resetSettings() {
+        settings = { ...DEFAULT_SETTINGS };
+        localStorage.removeItem(STORAGE_KEY);
+        applySettings();
+        removeReadingGuide();
+        console.log('Settings reset');
+    }
 
-    applyAll();
+    /**
+     * Settings speichern
+     */
+    function saveSettings() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    }
 
-    // make toolbar keyboard accessible
-    function makeFocusable(root) { root.querySelectorAll('button, [href], input, select, textarea, [role="button"], [tabindex]').forEach((el) => { if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0'); }); }
-    makeFocusable(toolbar);
+    /**
+     * Settings laden
+     */
+    function loadSettings() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                settings = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+            } catch (e) {
+                console.error('Error loading settings:', e);
+            }
+        }
+    }
 
-    // expose a minimal API to control the widget from host pages (optional)
-    window.adpAccessibility = {
-        open: () => { settings.toolbarOpen = true; toolbar.style.display = 'flex'; saveSettings(); },
-        close: () => { settings.toolbarOpen = false; toolbar.style.display = 'none'; saveSettings(); },
-        toggle: () => { settings.toolbarOpen = !settings.toolbarOpen; toolbar.style.display = settings.toolbarOpen ? 'flex' : 'none'; saveSettings(); },
-        getSettings: () => JSON.parse(JSON.stringify(settings)),
-        reset: resetAllSettings,
-        startTTS: startTTS,
-        stopTTS: stopTTS
+    /**
+     * Reading Guide erstellen
+     */
+    function createReadingGuide() {
+        removeReadingGuide();
+
+        const guideLine = document.createElement('div');
+        guideLine.id = 'a11y-reading-guide-line';
+        guideLine.className = 'a11y-reading-guide-line';
+        document.body.appendChild(guideLine);
+
+        document.addEventListener('mousemove', updateReadingGuide);
+    }
+
+    /**
+     * Reading Guide updaten
+     */
+    function updateReadingGuide(e) {
+        const guideLine = document.getElementById('a11y-reading-guide-line');
+        if (guideLine) {
+            guideLine.style.top = e.clientY + 'px';
+        }
+    }
+
+    /**
+     * Reading Guide entfernen
+     */
+    function removeReadingGuide() {
+        const guideLine = document.getElementById('a11y-reading-guide-line');
+        if (guideLine) {
+            guideLine.remove();
+        }
+        document.removeEventListener('mousemove', updateReadingGuide);
+    }
+
+    /**
+     * Focus Trap im Panel
+     */
+    function setupFocusTrap() {
+        const panel = widget.querySelector('.a11y-panel');
+        const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+        panel.addEventListener('keydown', (e) => {
+            if (e.key !== 'Tab') return;
+
+            const focusables = Array.from(panel.querySelectorAll(focusableElements));
+            const firstFocusable = focusables[0];
+            const lastFocusable = focusables[focusables.length - 1];
+            const activeElement = document.activeElement;
+
+            if (e.shiftKey) {
+                if (activeElement === firstFocusable) {
+                    e.preventDefault();
+                    lastFocusable.focus();
+                }
+            } else {
+                if (activeElement === lastFocusable) {
+                    e.preventDefault();
+                    firstFocusable.focus();
+                }
+            }
+        });
+    }
+
+    /**
+     * Widget setzen (vor init ausführen)
+     */
+    function setPosition(pos) {
+        if (POSITIONS.includes(pos)) {
+            DEFAULT_SETTINGS.position = pos;
+        }
+    }
+
+    /**
+     * Public API
+     */
+    window.AccessibilityWidget.init = init;
+    window.AccessibilityWidget.setPosition = setPosition;
+    window.AccessibilityWidget.destroy = function() {
+        if (widget) widget.remove();
+        if (styleElement) styleElement.remove();
+        removeReadingGuide();
+        widget = null;
+        styleElement = null;
     };
 
+    // Auto-init wenn Data-Attribut vorhanden
+    if (document.currentScript && document.currentScript.hasAttribute('data-auto-init')) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    }
 })();
 
 
