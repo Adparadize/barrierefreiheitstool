@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adparadize Accessibility Widget — Demo & Konfiguration</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f5f3; color: #111; }
+    .page { max-width: 860px; margin: 0 auto; padding: 3rem 2rem 8rem; }
+    h1 { font-size: 2rem; font-weight: 800; margin-bottom: .35rem; }
+    .sub { color: #6b6b68; font-size: 1rem; margin-bottom: 2.5rem; }
+
+    .card { background: #fff; border-radius: 10px; padding: 1.75rem; margin-bottom: 1.5rem; border: 1px solid #e8e9e6; }
+    .card h2 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: #111; display: flex; align-items: center; gap: .5rem; }
+    .card h2 span { background: #7d8778; color: #fff; font-size: .7rem; padding: 2px 8px; border-radius: 3px; letter-spacing: 1px; text-transform: uppercase; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media(max-width:600px) { .grid { grid-template-columns: 1fr; } }
+
+    label { display: block; font-size: .8rem; font-weight: 600; color: #6b6b68; margin-bottom: .3rem; letter-spacing: .5px; text-transform: uppercase; }
+    input[type="text"], input[type="url"], select {
+      width: 100%; padding: .55rem .75rem; border: 1.5px solid #e8e9e6; border-radius: 6px;
+      font-size: .9rem; font-family: inherit; color: #111; background: #fafaf8;
+      transition: border-color .15s; outline: none;
+    }
+    input:focus, select:focus { border-color: #7d8778; }
+
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: .5rem 0; border-bottom: 1px solid #f4f5f3; }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-lbl { font-size: .9rem; color: #111; }
+    .toggle-lbl small { display: block; font-size: .75rem; color: #6b6b68; }
+    .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: #dfe0dc; border-radius: 22px; transition: .2s; cursor: pointer; }
+    .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    input:checked + .toggle-slider { background: #7d8778; }
+    input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+    .code-block { background: #111; color: #b5bab0; font-family: 'Courier New', monospace; font-size: .82rem; padding: 1.25rem 1.5rem; border-radius: 8px; line-height: 1.7; overflow-x: auto; white-space: pre; margin-top: .75rem; }
+    .code-block .key { color: #7d8778; }
+    .code-block .str { color: #b8d4b0; }
+    .code-block .bool { color: #d4b0b0; }
+    .code-block .comment { color: #4e5449; }
+
+    .apply-btn {
+      background: #111; color: #fff; border: none; padding: .7rem 1.5rem;
+      border-radius: 6px; font-size: .85rem; font-weight: 600; cursor: pointer;
+      letter-spacing: .5px; text-transform: uppercase; transition: background .15s;
+      margin-top: 1rem; width: 100%;
+    }
+    .apply-btn:hover { background: #7d8778; }
+
+    .copy-btn {
+      background: #f4f5f3; color: #4e5449; border: 1px solid #e8e9e6;
+      padding: .4rem .9rem; border-radius: 5px; font-size: .75rem; font-weight: 600;
+      cursor: pointer; letter-spacing: .5px; text-transform: uppercase;
+      transition: all .15s; float: right; margin-top: -.1rem;
+    }
+    .copy-btn:hover { background: #7d8778; color: #fff; border-color: #7d8778; }
+
+    .badge-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
+    .badge { background: #f4f5f3; color: #4e5449; border: 1px solid #e8e9e6; font-size: .75rem; padding: 3px 10px; border-radius: 4px; font-weight: 500; }
+    .badge.active { background: #7d8778; color: #fff; border-color: #7d8778; }
+
+    .section-title { font-size: .7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #7d8778; margin-bottom: .75rem; display: flex; align-items: center; gap: 8px; }
+    .section-title::before { content: ''; display: block; width: 14px; height: 1px; background: #7d8778; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Accessibility Widget</h1>
+  <p class="sub">Adparadize · Konfigurator &amp; Demo — passe das Widget für jeden Kunden an</p>
+
+  <!-- KUNDE -->
+  <div class="card">
+    <h2>Kundeninformationen <span>Pflicht</span></h2>
+    <div class="grid">
+      <div>
+        <label>Firmenname</label>
+        <input type="text" id="cfg-brand-label" placeholder="z. B. Muster GmbH" value="Adparadize">
+      </div>
+      <div>
+        <label>Website-URL</label>
+        <input type="url" id="cfg-brand-link" placeholder="https://www.beispiel.de" value="https://adparadize.com">
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label>URL der Barrierefreiheitserklärung</label>
+        <input type="url" id="cfg-statement" placeholder="https://www.beispiel.de/barrierefreiheit" value="https://adparadize.com/accessibility-statement/">
+        <small style="color:#6b6b68;font-size:.75rem;margin-top:.3rem;display:block;">Diese URL erscheint im Widget-Footer als "Barrierefreiheitserklärung"</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- ERSCHEINUNGSBILD -->
+  <div class="card">
+    <h2>Erscheinungsbild <span>Optional</span></h2>
+    <div class="grid" style="margin-bottom:1rem;">
+      <div>
+        <label>Position des Buttons</label>
+        <select id="cfg-position">
+          <option value="bottom-left">Unten links (Standard)</option>
+          <option value="bottom-right">Unten rechts</option>
+          <option value="top-left">Oben links</option>
+          <option value="top-right">Oben rechts</option>
+          <option value="bottom-center">Unten Mitte</option>
+        </select>
+      </div>
+      <div>
+        <label>Akzentfarbe</label>
+        <input type="text" id="cfg-color" placeholder="#000000" value="#000000">
+      </div>
+      <div>
+        <label>Sprache (Standard)</label>
+        <select id="cfg-lang">
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="it">Italiano</option>
+          <option value="es">Español</option>
+          <option value="nl">Nederlands</option>
+          <option value="pl">Polski</option>
+          <option value="cs">Čeština</option>
+        </select>
+      </div>
+      <div>
+        <label>Button-Größe (px)</label>
+        <input type="text" id="cfg-size" placeholder="58" value="58">
+      </div>
+    </div>
+
+    <div class="section-title">Branding</div>
+    <div class="toggle-row">
+      <div class="toggle-lbl">
+        Adparadize-Branding ausblenden
+        <small>Entfernt "Adparadize Accessibility" aus dem Widget-Footer</small>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="cfg-hide-brand">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- EINBINDUNGSCODE -->
+  <div class="card">
+    <h2>Einbindungscode <span>Kopieren &amp; Einfügen</span></h2>
+    <p style="font-size:.85rem;color:#6b6b68;margin-bottom:.75rem;">Diesen Code vor dem schließenden <code style="background:#f4f5f3;padding:1px 5px;border-radius:3px;">&lt;/body&gt;</code>-Tag einfügen.</p>
+
+    <button class="copy-btn" onclick="copyCode()">Kopieren</button>
+    <div class="code-block" id="code-output"></div>
+
+    <button class="apply-btn" onclick="applyConfig()">▶ Konfiguration live anwenden</button>
+  </div>
+
+  <!-- CDN LINK -->
+  <div class="card">
+    <h2>CDN-Link <span>Immer aktuell</span></h2>
+    <p style="font-size:.85rem;color:#6b6b68;margin-bottom:.75rem;">Das Widget wird direkt von GitHub über jsDelivr geladen — immer die neueste Version.</p>
+    <div class="code-block">https://cdn.jsdelivr.net/gh/Adparadize/barrierefreiheitstool@main/accessibility-widget.js</div>
+    <div class="badge-row">
+      <span class="badge active">Automatische Updates</span>
+      <span class="badge">Kostenlos</span>
+      <span class="badge">DSGVO-konform</span>
+      <span class="badge">Kein Account nötig</span>
+    </div>
+  </div>
+
+</div>
+
+<script src="accessibility-widget.js"></script>
+<script>
+// ── Konfigurator ──────────────────────────────────────────────────
+function getConfig() {
+  return {
+    lang:       document.getElementById('cfg-lang').value,
+    position:   document.getElementById('cfg-position').value,
+    primaryColor: document.getElementById('cfg-color').value || '#000000',
+    size:       parseInt(document.getElementById('cfg-size').value) || 58,
+    statement:  document.getElementById('cfg-statement').value,
+    brandLink:  document.getElementById('cfg-brand-link').value,
+    brandLabel: document.getElementById('cfg-brand-label').value + ' Accessibility',
+    hideBrand:  document.getElementById('cfg-hide-brand').checked,
+  };
+}
+
+function renderCode() {
+  const c = getConfig();
+  const lines = [
+    `<span class="comment"><!-- Adparadize Accessibility Widget --></span>`,
+    `<span class="key">&lt;script</span>`,
+    `  <span class="key">src</span>=<span class="str">"https://cdn.jsdelivr.net/gh/Adparadize/barrierefreiheitstool@main/accessibility-widget.js"</span>`,
+    `  <span class="key">data-lang</span>=<span class="str">"${c.lang}"</span>`,
+    `  <span class="key">data-position</span>=<span class="str">"${c.position}"</span>`,
+    c.statement ? `  <span class="key">data-statement</span>=<span class="str">"${c.statement}"</span>` : null,
+    c.brandLink ? `  <span class="key">data-brand-link</span>=<span class="str">"${c.brandLink}"</span>` : null,
+    c.brandLabel ? `  <span class="key">data-brand-label</span>=<span class="str">"${c.brandLabel}"</span>` : null,
+    c.hideBrand ? `  <span class="key">data-hide-brand</span>=<span class="str">"true"</span>` : null,
+    c.primaryColor !== '#000000' ? `  <span class="key">data-primary-color</span>=<span class="str">"${c.primaryColor}"</span>` : null,
+    `<span class="key">&gt;&lt;/script&gt;</span>`,
+  ].filter(Boolean).join('\n');
+
+  document.getElementById('code-output').innerHTML = lines;
+}
+
+function applyConfig() {
+  // Remove existing widget
+  document.querySelector('.asw-container')?.remove();
+  document.querySelectorAll('[id^="asw-"]').forEach(el => el.remove());
+
+  const c = getConfig();
+
+  // Re-init with new config
+  if (window.AdparadizePlugin && typeof window.AdparadizePlugin.then === 'function') {
+    window.AdparadizePlugin = null;
+  }
+
+  // Dynamically override config and reinit
+  const script = document.createElement('script');
+  script.textContent = `
+    (function() {
+      // Patch the _ config object via data attributes simulation
+      const fakeScript = document.createElement('script');
+      fakeScript.setAttribute('data-lang', '${c.lang}');
+      fakeScript.setAttribute('data-position', '${c.position}');
+      fakeScript.setAttribute('data-statement', '${c.statement}');
+      fakeScript.setAttribute('data-brand-link', '${c.brandLink}');
+      fakeScript.setAttribute('data-brand-label', '${c.brandLabel}');
+      fakeScript.setAttribute('data-hide-brand', '${c.hideBrand}');
+      fakeScript.setAttribute('data-primary-color', '${c.primaryColor}');
+      document.head.appendChild(fakeScript);
+
+      // Force re-init
+      if (window.SiennaAccessibility) {
+        delete window.AdparadizePlugin;
+      }
+    })();
+  `;
+  document.head.appendChild(script);
+
+  // Reload widget fresh
+  location.reload();
+}
+
+function copyCode() {
+  const c = getConfig();
+  const plain = [
+    '<!-- Adparadize Accessibility Widget -->',
+    '<script',
+    '  src="https://cdn.jsdelivr.net/gh/Adparadize/barrierefreiheitstool@main/accessibility-widget.js"',
+    `  data-lang="${c.lang}"`,
+    `  data-position="${c.position}"`,
+    c.statement ? `  data-statement="${c.statement}"` : null,
+    c.brandLink ? `  data-brand-link="${c.brandLink}"` : null,
+    c.brandLabel ? `  data-brand-label="${c.brandLabel}"` : null,
+    c.hideBrand ? `  data-hide-brand="true"` : null,
+    c.primaryColor !== '#000000' ? `  data-primary-color="${c.primaryColor}"` : null,
+    '></scr' + 'ipt>',
+  ].filter(Boolean).join('\n');
+
+  navigator.clipboard.writeText(plain).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✓ Kopiert!';
+    btn.style.background = '#7d8778';
+    btn.style.color = '#fff';
+    setTimeout(() => {
+      btn.textContent = 'Kopieren';
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 2000);
+  });
+}
+
+// ── data-Attribute-Unterstützung nachrüsten ───────────────────────
+// Patch: read data-statement, data-brand-link etc. from script tag
+(function patchDataAttributes() {
+  const scripts = document.querySelectorAll('script[data-statement], script[src*="accessibility-widget"]');
+  if (!scripts.length) return;
+  const s = scripts[scripts.length - 1];
+
+  function attr(name) {
+    return s.getAttribute('data-' + name) || s.getAttribute('data-asw-' + name);
+  }
+
+  // Override after widget initializes
+  const origInit = window.AdparadizePlugin;
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      const statement = attr('statement');
+      const brandLink = attr('brand-link');
+      const brandLabel = attr('brand-label');
+      const hideBrand = attr('hide-brand') === 'true';
+
+      if (statement) {
+        const el = document.getElementById('asw-statement-link');
+        if (el) el.href = statement;
+      }
+      if (brandLink) {
+        const powered = document.querySelector('.asw-footer-powered');
+        if (powered) powered.href = brandLink;
+        const menuTitle = document.querySelector('.asw-menu-title');
+        if (menuTitle) menuTitle.href = brandLink;
+      }
+      if (brandLabel) {
+        const powered = document.querySelector('.asw-footer-powered');
+        if (powered) powered.textContent = brandLabel;
+      }
+      if (hideBrand) {
+        const powered = document.querySelector('.asw-footer-powered');
+        if (powered) powered.style.display = 'none';
+        const stmt = document.getElementById('asw-statement-link');
+        if (stmt) { stmt.style.marginLeft = 'auto'; }
+      }
+    }, 800);
+  });
+})();
+
+// Live-Update on input change
+document.querySelectorAll('input, select').forEach(el => {
+  el.addEventListener('input', renderCode);
+  el.addEventListener('change', renderCode);
+});
+renderCode();
+</script>
+</body>
+</html>
