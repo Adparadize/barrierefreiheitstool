@@ -1,2 +1,0 @@
-# barrierefreiheitstool
-Barrierefreiheitstool Webseiten
